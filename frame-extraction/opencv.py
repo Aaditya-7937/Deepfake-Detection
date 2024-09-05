@@ -30,6 +30,6 @@ def split_video_into_frames(video_path, output_dir):
     print(f"Extracted {frame_count} frames from {video_path}")
 
 # Example usage:
-video_path = 
-output_dir = 
+video_path = 'uploads'
+output_dir = 'frames'
 split_video_into_frames(video_path, output_dir)
