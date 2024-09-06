@@ -10,10 +10,11 @@ from keras.applications.resnet import preprocess_input
 from keras.models import Model
 from keras.utils import to_categorical
 
+
 def ela_image(image_path, quality=90):
     """Perform Error Level Analysis on an image."""
     original = Image.open(image_path)
-    
+
     # Save the image at the specified quality level
     resaved_path = "resaved.jpg"
     original.save(resaved_path, 'JPEG', quality=quality)
@@ -32,45 +33,89 @@ def ela_image(image_path, quality=90):
 
     return np.array(diff)
 
+
 def load_frames_with_ela(subfolder_path):
     """Load all frames and perform ELA from the 'frames' directory within a subfolder."""
     ela_frames = []
     frames_dir = os.path.join(subfolder_path, "frames")
-    
+
+    # Check if the frames directory exists and contains images
+    if not os.path.exists(frames_dir):
+        print(f"Frames directory does not exist: {frames_dir}")
+        return ela_frames
+
     for filename in sorted(os.listdir(frames_dir)):
         if filename.endswith(".png") or filename.endswith(".jpg"):  # Adjust for your file types
             frame_path = os.path.join(frames_dir, filename)
+            print(f"Loading frame: {frame_path}")
             ela_frame = ela_image(frame_path)
             ela_frame = cv2.resize(ela_frame, (224, 224))  # Resize to ResNet input size
             ela_frames.append(ela_frame)
-    
+        else:
+            print(f"Invalid file type or no frames found: {filename}")
+
+    print(f"Total frames loaded from {frames_dir}: {len(ela_frames)}")
     return ela_frames
+
+
 
 def load_labels_from_file(file_path):
     """Load the video-level label (real or fake) from the label file."""
+    if not os.path.exists(file_path):
+        print(f"Label file does not exist: {file_path}")
+        return None
+
     with open(file_path, 'r') as file:
-        label = file.readline().strip().split()[1]  # Assuming the label is on the first line
+        label_line = file.readline().strip().split()
+        print(f"Label line: {label_line}")
+        if len(label_line) < 2:
+            print(f"Invalid label format in {file_path}")
+            return None
+
+        label = label_line[1]  # Assuming the label is on the first line
     return 1 if label == "fake" else 0  # Convert to binary label
+
+
 
 def load_dataset_from_main_folder(main_folder_path):
     """Load video frames (with ELA) and labels from the main folder."""
     all_videos = []
     all_labels = []
-    
+
     for subfolder_name in sorted(os.listdir(main_folder_path)):
         subfolder_path = os.path.join(main_folder_path, subfolder_name)
         if os.path.isdir(subfolder_path):
             ela_frames = load_frames_with_ela(subfolder_path)
+            if len(ela_frames) == 0:
+                print(f"No frames found in {subfolder_path}, skipping...")
+                continue  # Skip this video if no frames are found
+
             label = load_labels_from_file(os.path.join(subfolder_path, "labels.txt"))
-            
+            if label is None:
+                print(f"No label found for {subfolder_path}, skipping...")
+                continue  # Skip this video if no label is found
+
             all_videos.append(np.array(ela_frames))
             all_labels.append(label)
-    
+
+    if len(all_videos) == 0 or len(all_labels) == 0:
+        print("No valid videos or labels were loaded. Check your dataset structure.")
+    else:
+        print(f"Total videos loaded: {len(all_videos)}")
+
     return np.array(all_videos), np.array(all_labels)
 
+
+
 # Load dataset
-main_folder_path = 'C:\\DEEPFAKE DETECTION\\dataset'
+main_folder_path = r"C:\DEEPFAKE DETECTION\checking"
 videos, labels = load_dataset_from_main_folder(main_folder_path)
+if len(videos) == 0 or len(labels) == 0:
+    print("Dataset is empty or improperly loaded. Exiting...")
+    exit()
+
+# Normalize pixel values
+normalized_videos = np.array([preprocess_input(video) for video in videos])
 
 # Normalize pixel values
 normalized_videos = np.array([preprocess_input(video) for video in videos])
